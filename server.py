@@ -39,25 +39,27 @@ class ResponseObject:
         self.content = content
         self.expires = 'Expires: -1\n'
         self.cache = 'Cache-Control: private, max-age=0\n'
-        self.connection = 'Connection: close\n\n'
+        self.connection = 'Connection: close\n'
 
-        if file_path and file_path.endswith('.html'):
+        if file_path and (file_path.endswith('.html') or file_path.endswith('/')):
             self.content_type = 'Content-type: text/html; charset=UTF-8\n'
         elif file_path and file_path.endswith('.css'):
-            self.content_type = 'Content-type: text/css; charset=UTF-8'
+            self.content_type = 'Content-type: text/css; charset=UTF-8\n'
         else:
-            self.content_type = 'Content-type: text/plain; charset=UTF-8'
+            self.content_type = 'Content-type: text/plain; charset=UTF-8\n'
 
         self.headers = self.expires + self.cache + self.content_type + self.connection
 
         if status_code == '200':
-            self.formatted_response = protocol + ' 200 ' + 'OK\n' + self.headers + content
+            self.formatted_response = protocol + ' 200 ' + 'OK\n' + self.headers + '\n' + content
         elif status_code == '404':
             self.formatted_response = protocol + ' 404 ' + 'Not Found\n' + self.headers
         elif status_code == '405':
             self.formatted_response = protocol + ' 405 ' + 'Method Not Allowed\n' + self.headers
         elif status_code == '301':
-            pass
+            self.url = 'http://127.0.0.1:8080' + file_path + '/'
+            self.headers = self.expires + self.cache + self.connection + f'Location: {self.url}\n'
+            self.formatted_response = protocol + ' 301 ' + 'Moved Permanently\n' + self.headers
         else:
             raise "Invalid status code"
 
@@ -88,23 +90,17 @@ class MyWebServer(socketserver.BaseRequestHandler):
             response = protocol + ' 405 ' + 'Method Not Allowed\n\n'
             self.request.sendall(bytearray(response, "utf-8"))
 
-        if file == '/':
-            with open('www/index.html') as f:
-                content = f.read()
-                response = ResponseObject(protocol, '200', content)
-                print("Response:\n", response.response, "\n", sep="")
-                self.request.sendall(response.response_bytes)
-        else:
-            # prevent serving any files outside the local www directory this would trigger for a request where file
-            # escapes the folder e.g. ../../../something/something
-            if SERVE_FILES_PATH not in abspath('./www' + file):
-                response = ResponseObject(protocol, '404')
-                self.request.sendall(response.response_bytes)
-                return
+        # prevent serving any files outside the local www directory. This would trigger for a request where file
+        # escapes the folder e.g. ../../../something/something
+        if SERVE_FILES_PATH not in abspath('./www' + file):
+            response = ResponseObject(protocol, '404')
+            self.request.sendall(response.response_bytes)
+            return
 
+        if file.endswith('.html') or file.endswith('.css'):
             # checks if the given path actually exists within the www directory
-            path = Path('www/' + file)
-            if not path:
+            path = Path('www' + file)
+            if not path.exists():
                 response = ResponseObject(protocol, '404')
                 self.request.sendall(response.response_bytes)
                 return
@@ -115,6 +111,35 @@ class MyWebServer(socketserver.BaseRequestHandler):
                 response = ResponseObject(protocol, '200', content, file)
                 print("Response:\n", response.response, "\n", sep="")
                 self.request.sendall(response.response_bytes)
+        elif file.endswith('/'):
+            # checks if the given path actually exists within the www directory
+            path = Path('www' + file)
+            if not path.exists():
+                response = ResponseObject(protocol, '404')
+                self.request.sendall(response.response_bytes)
+                return
+
+
+            # at this point we know the directory exists and is within the local www directory
+            with open(Path(path, 'index.html')) as f:
+                content = f.read()
+                response = ResponseObject(protocol, '200', content, file)
+                print("Response:\n", response.response, "\n", sep="")
+                self.request.sendall(response.response_bytes)
+        else:
+            # file does not end with .html .css or / so we must check for incorrect but fixable url (301)
+
+            # checks if the given path actually exists within the www directory
+            path = Path('www' + file + '/')
+            if not path.exists():
+                response = ResponseObject(protocol, '404')
+                self.request.sendall(response.response_bytes)
+                return
+
+            # send a response with the correct url
+            response = ResponseObject(protocol, '301', None, file)
+            print("Response:\n", response.response, "\n", sep="")
+            self.request.sendall(response.response_bytes)
 
 
 if __name__ == "__main__":
