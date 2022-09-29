@@ -3,8 +3,7 @@ import socketserver
 from pathlib import Path
 from os.path import abspath
 
-
-# Copyright 2013 Abram Hindle, Eddie Antonio Santos
+# Copyright 2013 Abram Hindle, Eddie Antonio Santos, Timothee Legros
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +30,7 @@ from os.path import abspath
 
 # variable used to determine whether a requested file is actually within the local www directory
 SERVE_FILES_PATH = abspath('./www')
+
 
 class ResponseObject:
     def __init__(self, protocol, status_code, content=None, file_path=None):
@@ -87,13 +87,16 @@ class MyWebServer(socketserver.BaseRequestHandler):
 
         # return 405 if request is not of type GET
         if req_type != 'GET':
-            response = protocol + ' 405 ' + 'Method Not Allowed\n\n'
-            self.request.sendall(bytearray(response, "utf-8"))
+            response = ResponseObject(protocol, '405')
+            print("Response:\n", response.response, "\n", sep="")
+            self.request.sendall(response.response_bytes)
+            return
 
         # prevent serving any files outside the local www directory. This would trigger for a request where file
         # escapes the folder e.g. ../../../something/something
         if SERVE_FILES_PATH not in abspath('./www' + file):
             response = ResponseObject(protocol, '404')
+            print("Response:\n", response.response, "\n", sep="")
             self.request.sendall(response.response_bytes)
             return
 
@@ -120,7 +123,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
                 return
 
 
-            # at this point we know the directory exists and is within the local www directory
+                # at this point we know the directory exists and is within the local www directory
             with open(Path(path, 'index.html')) as f:
                 content = f.read()
                 response = ResponseObject(protocol, '200', content, file)
