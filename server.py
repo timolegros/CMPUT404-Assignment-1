@@ -77,26 +77,31 @@ class MyWebServer(socketserver.BaseRequestHandler):
     def handle(self):
         self.data = self.request.recv(1024).strip().decode('utf-8').replace("\r", "")
 
-        print("Request received:\n", self.data, "\n", sep="")
+        # print("Request received:\n", self.data, "\n", sep="")
 
         headers = self.data.split('\n')
         base = headers[0].split(" ")
         req_type = base[0]
-        file = base[1]
+        file = base[1].replace("%20", " ").replace("%21", "!").replace("%22", '"').replace("%23", "#")\
+            .replace("%24", "$").replace("%25", "%").replace("%26", "&").replace("%27", "'").replace("%28", "(")\
+            .replace("%29", ")").replace("%2B", " ")
         protocol = base[2]
+
+        # print("Parsed Headers:", base, req_type, file, protocol)
 
         # return 405 if request is not of type GET
         if req_type != 'GET':
             response = ResponseObject(protocol, '405')
-            print("Response:\n", response.response, "\n", sep="")
+            # print("Response:\n", response.response, "\n", sep="")
             self.request.sendall(response.response_bytes)
             return
 
+        # print('Absolute path:', abspath('./www' + file))
         # prevent serving any files outside the local www directory. This would trigger for a request where file
         # escapes the folder e.g. ../../../something/something
         if SERVE_FILES_PATH not in abspath('./www' + file):
             response = ResponseObject(protocol, '404')
-            print("Response:\n", response.response, "\n", sep="")
+            # print("Response:\n", response.response, "\n", sep="")
             self.request.sendall(response.response_bytes)
             return
 
@@ -105,6 +110,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
             path = Path('www' + file)
             if not path.exists():
                 response = ResponseObject(protocol, '404')
+                # print("Response:\n", response.response, "\n", sep="")
                 self.request.sendall(response.response_bytes)
                 return
 
@@ -112,13 +118,14 @@ class MyWebServer(socketserver.BaseRequestHandler):
             with open(path) as f:
                 content = f.read()
                 response = ResponseObject(protocol, '200', content, file)
-                print("Response:\n", response.response, "\n", sep="")
+                # print("Response:\n", response.response, "\n", sep="")
                 self.request.sendall(response.response_bytes)
         elif file.endswith('/'):
             # checks if the given path actually exists within the www directory
             path = Path('www' + file)
             if not path.exists():
                 response = ResponseObject(protocol, '404')
+                # print("Response:\n", response.response, "\n", sep="")
                 self.request.sendall(response.response_bytes)
                 return
 
@@ -127,7 +134,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
             with open(Path(path, 'index.html')) as f:
                 content = f.read()
                 response = ResponseObject(protocol, '200', content, file)
-                print("Response:\n", response.response, "\n", sep="")
+                # print("Response:\n", response.response, "\n", sep="")
                 self.request.sendall(response.response_bytes)
         else:
             # file does not end with .html .css or / so we must check for incorrect but fixable url (301)
@@ -136,12 +143,13 @@ class MyWebServer(socketserver.BaseRequestHandler):
             path = Path('www' + file + '/')
             if not path.exists():
                 response = ResponseObject(protocol, '404')
+                # print("Response:\n", response.response, "\n", sep="")
                 self.request.sendall(response.response_bytes)
                 return
 
             # send a response with the correct url
             response = ResponseObject(protocol, '301', None, file)
-            print("Response:\n", response.response, "\n", sep="")
+            # print("Response:\n", response.response, "\n", sep="")
             self.request.sendall(response.response_bytes)
 
 
